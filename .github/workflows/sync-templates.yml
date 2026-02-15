@@ -1,0 +1,25 @@
+name: Sync templates to S3
+on:
+  push:
+    branches: [main]
+    paths: [server/**, mobile/**]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::620455725922:role/git-s3-full-access-role
+          aws-region: ap-northeast-2
+
+      - name: Sync templates to S3
+        run: |
+          aws s3 sync server/ s3://barlow-deploy-bucket/templates/server/ --delete
+          aws s3 sync mobile/ s3://barlow-deploy-bucket/templates/mobile/ --delete
