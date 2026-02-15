@@ -60,6 +60,12 @@ Resources:
           SpotOptions:
             SpotInstanceType: one-time
             InstanceInterruptionBehavior: terminate
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            SubnetId: !Ref SubnetId
+            Groups:
+              - !Ref TestSecurityGroup
 
   SpotInstance:
     Type: AWS::EC2::Instance
@@ -70,9 +76,6 @@ Resources:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
-      SubnetId: !Ref SubnetId
-      SecurityGroupIds:
-        - !Ref TestSecurityGroup
       Tags:
         - Key: Name
           Value: test-spot-instance
