@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: EC2 t3 family with SG
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the instance will be launched
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet for the instance
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: EC2 instance type
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: (Optional) SSH key pair name to connect to the instance
+
+  AllowedCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR allowed to access port 8080 (recommend using your IP /32)
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID to use (e.g., Amazon Linux 2023)
+
+Resources:
+  TestSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow inbound 8080 only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !Ref AllowedCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: test-spot-sg
+        - Key: env
+          Value: test
+
+  SpotLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            SpotInstanceType: one-time
+            InstanceInterruptionBehavior: terminate
+
+  SpotInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref SpotLaunchTemplate
+        Version: !GetAtt SpotLaunchTemplate.LatestVersionNumber
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref TestSecurityGroup
+      Tags:
+        - Key: Name
+          Value: test-spot-instance
+        - Key: env
+          Value: test
+
+Outputs:
+  InstanceId:
+    Description: Spot EC2 Instance Id
+    Value: !Ref SpotInstance
+
+  PublicIp:
+    Description: Public IP of the instance
+    Value: !GetAtt SpotInstance.PublicIp
+
+  TestUrl:
+    Description: URL to access your test server
+    Value: !Sub "http://${SpotInstance.PublicIp}:8080/api/v1/health"
