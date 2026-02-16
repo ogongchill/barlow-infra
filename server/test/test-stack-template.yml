@@ -1,0 +1,175 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Test environment - EC2 Spot + RDS from snapshot
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where resources will be launched
+
+  Ec2SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet for EC2 instance
+
+  RdsSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Minimum subnets for RDS (minimum 2 AZs)
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: SSH key pair name
+
+  AllowedCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR allowed for SSH and app access
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID for EC2 instance
+
+  DBSnapshotIdentifier:
+    Type: String
+    Description: RDS snapshot ARN or identifier to restore from
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+
+Resources:
+  # ---- EC2 Security Group ----
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and 8080
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AllowedCidr
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !Ref AllowedCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: test-ec2-sg
+        - Key: env
+          Value: test
+
+  # ---- RDS Security Group ----
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow MySQL from EC2 and external access
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2SecurityGroup
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: !Ref AllowedCidr
+      Tags:
+        - Key: Name
+          Value: test-rds-sg
+        - Key: env
+          Value: test
+
+  # ---- EC2 Spot Instance ----
+  SpotLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            SpotInstanceType: one-time
+            InstanceInterruptionBehavior: terminate
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            SubnetId: !Ref Ec2SubnetId
+            Groups:
+              - !Ref EC2SecurityGroup
+
+  SpotInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref SpotLaunchTemplate
+        Version: !GetAtt SpotLaunchTemplate.LatestVersionNumber
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: test-spot-instance
+        - Key: env
+          Value: test
+
+  # ---- RDS from Snapshot ----
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets for test RDS
+      SubnetIds: !Ref RdsSubnetIds
+      Tags:
+        - Key: Name
+          Value: test-db-subnet-group
+        - Key: env
+          Value: test
+
+  TestDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBSnapshotIdentifier: !Ref DBSnapshotIdentifier
+      DBInstanceClass: !Ref DBInstanceClass
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      PubliclyAccessible: true
+      MultiAZ: false
+      Tags:
+        - Key: Name
+          Value: test-rds-instance
+        - Key: env
+          Value: test
+
+Outputs:
+  InstanceId:
+    Description: EC2 Instance Id
+    Value: !Ref SpotInstance
+
+  PublicIp:
+    Description: Public IP of EC2
+    Value: !GetAtt SpotInstance.PublicIp
+
+  TestUrl:
+    Description: Test server URL
+    Value: !Sub "http://${SpotInstance.PublicIp}:8080/api/v1/health"
+
+  RDSEndpoint:
+    Description: RDS endpoint
+    Value: !GetAtt TestDBInstance.Endpoint.Address
+
+  RDSPort:
+    Description: RDS port
+    Value: !GetAtt TestDBInstance.Endpoint.Port
