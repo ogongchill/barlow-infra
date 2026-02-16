@@ -153,6 +153,77 @@ Resources:
         - Key: env
           Value: test
 
+  # ---- Auto Cleanup on EC2 Terminate ----
+  CleanupLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DeleteStackPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DeleteStack
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - Effect: Allow
+                Action:
+                  - ec2:*
+                  - rds:*
+                  - logs:*
+                Resource: "*"
+
+  CleanupLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt CleanupLambdaRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          STACK_NAME: !Ref AWS::StackName
+      Code:
+        ZipFile: |
+          import boto3, os
+          def handler(event, context):
+              stack = os.environ['STACK_NAME']
+              boto3.client('cloudformation').delete_stack(StackName=stack)
+              return {'status': 'deleting', 'stack': stack}
+
+  CleanupLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CleanupLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CleanupRule.Arn
+
+  CleanupRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Delete stack when EC2 spot instance is terminated
+      EventPattern:
+        source:
+          - aws.ec2
+        detail-type:
+          - EC2 Instance State-change Notification
+        detail:
+          state:
+            - terminated
+          instance-id:
+            - !Ref SpotInstance
+      Targets:
+        - Arn: !GetAtt CleanupLambda.Arn
+          Id: CleanupTarget
+
 Outputs:
   InstanceId:
     Description: EC2 Instance Id
