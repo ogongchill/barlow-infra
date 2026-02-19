@@ -45,8 +45,9 @@ Parameters:
 
   DBInstanceClass:
     Type: String
-    Default: db.t3.micro
+    Default: db.t4g.micro
     AllowedValues:
+      - db.t4g.micro 
       - db.t3.micro
       - db.t3.small
       - db.t3.medium
