@@ -35,6 +35,10 @@ Parameters:
     Type: AWS::EC2::Image::Id
     Description: AMI ID for EC2 instance
 
+  JarS3Path:
+    Type: String
+    Description: S3 path to app.jar (e.g. s3://bucket/path/app.jar)
+
   DBSnapshotIdentifier:
     Type: String
     Description: RDS snapshot ARN or identifier to restore from
@@ -93,11 +97,33 @@ Resources:
         - Key: env
           Value: test
 
+  # ---- EC2 IAM Role ----
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
   # ---- EC2 Spot Instance ----
   SpotLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
         InstanceMarketOptions:
           MarketType: spot
           SpotOptions:
@@ -109,9 +135,41 @@ Resources:
             SubnetId: !Ref Ec2SubnetId
             Groups:
               - !Ref EC2SecurityGroup
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            # 1. RDS connection test
+            for i in $(seq 1 30); do
+              nc -z ${TestDBInstance.Endpoint.Address} 3306 && break
+              sleep 10
+            done
+
+            # 2. Download jar from S3
+            aws s3 cp ${JarS3Path} /home/ec2-user/app.jar
+
+            # 3. Run app
+            nohup java -jar /home/ec2-user/app.jar \
+              --spring.datasource.url=jdbc:mysql://${TestDBInstance.Endpoint.Address}:3306 \
+              > /home/ec2-user/app.log 2>&1 &
+
+            # 4. Health check
+            for i in $(seq 1 30); do
+              curl -sf http://localhost:8080/api/v1/health && break
+              sleep 10
+            done
+
+            # 5. Signal CloudFormation
+            /opt/aws/bin/cfn-signal -e $? \
+              --stack ${AWS::StackName} \
+              --resource SpotInstance \
+              --region ${AWS::Region}
 
   SpotInstance:
     Type: AWS::EC2::Instance
+    DependsOn: TestDBInstance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
     Properties:
       LaunchTemplate:
         LaunchTemplateId: !Ref SpotLaunchTemplate
