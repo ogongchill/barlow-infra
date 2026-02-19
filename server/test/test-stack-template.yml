@@ -150,10 +150,11 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
-            # 0. 환경변수 등록
-            echo "export DATABASE_CORE_DB_URL=${TestDBInstance.Endpoint.Address}" >> /home/ubuntu/.profile
+            # 0. 환경변수 등록 (AMI .profile의 기존값 override)
+            echo "export STORAGE_DATABASE_CORE_DB_URL=${TestDBInstance.Endpoint.Address}:3306" >> /home/ubuntu/.profile
             echo "export JAR_S3_PATH=${JarS3Path}" >> /home/ubuntu/.profile
             source /home/ubuntu/.profile
+            RDS_ADDRESS=$(echo $STORAGE_DATABASE_CORE_DB_URL | cut -d: -f1)
 
             INSTANCE_ID=$(cat /var/lib/cloud/data/instance-id)
             PUBLIC_IP=$(curl -sf http://169.254.169.254/latest/meta-data/public-ipv4 || echo "unknown")
