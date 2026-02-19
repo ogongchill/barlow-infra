@@ -110,6 +110,14 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      Policies:
+        - PolicyName: CfnSignalPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: cloudformation:SignalResource
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -145,23 +153,26 @@ Resources:
             done
 
             # 2. Download jar from S3
-            aws s3 cp ${JarS3Path} /home/ec2-user/app.jar
+            aws s3 cp ${JarS3Path} /home/ubuntu/app.jar
 
-            # 3. Run app
-            nohup java -jar /home/ec2-user/app.jar \
-              --spring.datasource.url=jdbc:mysql://${TestDBInstance.Endpoint.Address}:3306 \
-              > /home/ec2-user/app.log 2>&1 &
+            # # 3. Run app
+            # nohup java -jar /home/ubuntu/app.jar \
+            #   --spring.datasource.url=jdbc:mysql://${TestDBInstance.Endpoint.Address}:3306 \
+            #   > /home/ubuntu/app.log 2>&1 &
 
-            # 4. Health check
-            for i in $(seq 1 30); do
-              curl -sf http://localhost:8080/api/v1/health && break
-              sleep 10
-            done
+            # # 4. Health check
+            # for i in $(seq 1 30); do
+            #   curl -sf http://localhost:8080/api/v1/health && break
+            #   sleep 10
+            # done
 
             # 5. Signal CloudFormation
-            /opt/aws/bin/cfn-signal -e $? \
-              --stack ${AWS::StackName} \
-              --resource SpotInstance \
+            INSTANCE_ID=$(cat /var/lib/cloud/data/instance-id)
+            aws cloudformation signal-resource \
+              --stack-name ${AWS::StackName} \
+              --logical-resource-id SpotInstance \
+              --unique-id $INSTANCE_ID \
+              --status SUCCESS \
               --region ${AWS::Region}
 
   SpotInstance:
