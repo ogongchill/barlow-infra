@@ -111,13 +111,16 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
       Policies:
-        - PolicyName: CfnSignalPolicy
+        - PolicyName: EC2AppPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action: cloudformation:SignalResource
                 Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/barlow/staging/slack-webhook-url
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -146,34 +149,84 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
+            # 0. 환경변수 등록
+            echo "export DATABASE_CORE_DB_URL=${TestDBInstance.Endpoint.Address}" >> /home/ubuntu/.profile
+            echo "export JAR_S3_PATH=${JarS3Path}" >> /home/ubuntu/.profile
+            source /home/ubuntu/.profile
+
+            INSTANCE_ID=$(cat /var/lib/cloud/data/instance-id)
+            PUBLIC_IP=$(curl -sf http://169.254.169.254/latest/meta-data/public-ipv4 || echo "unknown")
+            SLACK_WEBHOOK_URL=$(aws ssm get-parameter \
+              --name "/barlow/staging/slack-webhook-url" \
+              --with-decryption \
+              --query "Parameter.Value" \
+              --output text \
+              --region ${AWS::Region})
+
+            # 배포 실패 시 알림
+            trap '
+              trap "" ERR
+              aws cloudformation signal-resource \
+                --stack-name ${AWS::StackName} \
+                --logical-resource-id SpotInstance \
+                --unique-id $INSTANCE_ID \
+                --status FAILURE \
+                --region ${AWS::Region}
+              curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"text\": \"*[TEST] 스택 배포 실패*\",
+                  \"attachments\": [{
+                    \"color\": \"danger\",
+                    \"fields\": [
+                      {\"title\": \"Stack\",  \"value\": \"${AWS::StackName}\", \"short\": true},
+                      {\"title\": \"Region\", \"value\": \"${AWS::Region}\",    \"short\": true}
+                    ]
+                  }]
+                }"
+            ' ERR
+
             # 1. RDS connection test
             for i in $(seq 1 30); do
-              nc -z ${TestDBInstance.Endpoint.Address} 3306 && break
+              nc -z $RDS_ADDRESS 3306 && break
               sleep 10
             done
 
             # 2. Download jar from S3
-            aws s3 cp ${JarS3Path} /home/ubuntu/app.jar
+            aws s3 cp $JAR_S3_PATH /home/ubuntu/barlow-server/app.jar
 
-            # # 3. Run app
-            # nohup java -jar /home/ubuntu/app.jar \
-            #   --spring.datasource.url=jdbc:mysql://${TestDBInstance.Endpoint.Address}:3306 \
-            #   > /home/ubuntu/app.log 2>&1 &
+            # 3. Run app
+            bash /home/ubuntu/barlow-server/deploy.sh
 
-            # # 4. Health check
-            # for i in $(seq 1 30); do
-            #   curl -sf http://localhost:8080/api/v1/health && break
-            #   sleep 10
-            # done
+            # 4. Health check
+            for i in $(seq 1 30); do
+              curl -sf http://localhost:8080/api/v1/health && break
+              sleep 10
+            done
 
             # 5. Signal CloudFormation
-            INSTANCE_ID=$(cat /var/lib/cloud/data/instance-id)
             aws cloudformation signal-resource \
               --stack-name ${AWS::StackName} \
               --logical-resource-id SpotInstance \
               --unique-id $INSTANCE_ID \
               --status SUCCESS \
               --region ${AWS::Region}
+
+            # 6. Slack 성공 알림
+            curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"text\": \"*[TEST] 스택 배포 완료*\",
+                \"attachments\": [{
+                  \"color\": \"good\",
+                  \"fields\": [
+                    {\"title\": \"Stack\",    \"value\": \"${AWS::StackName}\", \"short\": true},
+                    {\"title\": \"Region\",   \"value\": \"${AWS::Region}\",    \"short\": true},
+                    {\"title\": \"Test URL\", \"value\": \"http://$PUBLIC_IP:8080/api/v1/health\", \"short\": false},
+                    {\"title\": \"RDS\",      \"value\": \"$RDS_ADDRESS:3306\", \"short\": false}
+                  ]
+                }]
+              }"
 
   SpotInstance:
     Type: AWS::EC2::Instance
