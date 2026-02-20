@@ -25,8 +25,6 @@ EC2 Spot인스턴스 1개와 + RDS 스냅샷 복원 기반의 단발성 테스�
 ## 아키텍처
 ![alt text](imgs/architecture.png)
 
-```
-
 > **subnet-b가 비어있는 이유**: DBSubnetGroup은 최소 2개 AZ 서브넷을 요구합니다. EC2와 RDS는 동일 AZ(2a)에 배치해 크로스 AZ 통신 비용을 제거합니다.
 
 > **Lambda self-deletion**: 현재 CleanupLambda는 스택 내부에 포함되어 자기 자신도 삭제합니다. 추후 Lambda를 스택 외부로 분리할 예정입니다.
@@ -242,5 +240,3 @@ db의 경우 rds snapshot > 복구 의 형식으로 생성합니다.
 스택 배포가 완료되었다면 slack `#서버-테스트-알림` 채널에 알림.
 생성된 ec2의 public ip와 rds 주소를 확인 가능합니다.
 실패시도 알림.
-
-5. 기
