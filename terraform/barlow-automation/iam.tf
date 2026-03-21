@@ -135,7 +135,7 @@ resource "aws_iam_role_policy" "deployer_permissions" {
       {
         Effect   = "Allow"
         Action   = ["ssm:PutParameter"]
-        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/barlow/deploy/*"
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/automation/*"
       }
     ]
   })
