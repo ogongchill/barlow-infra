@@ -14,6 +14,7 @@ resource "aws_lambda_function" "ack" {
     variables = {
       SLACK_BOT_TOKEN      = data.aws_ssm_parameter.slack_bot_token.value
       SLACK_SIGNING_SECRET = data.aws_ssm_parameter.slack_signing_secret.value
+      OPENAI_API_KEY       = data.aws_ssm_parameter.openai_api_key.value
       SQS_QUEUE_URL        = aws_sqs_queue.queue.url
       GITHUB_TOKEN         = data.aws_ssm_parameter.github_token.value
       TARGET_REPO   = data.aws_ssm_parameter.target_repo.value
