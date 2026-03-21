@@ -37,6 +37,21 @@ resource "aws_lambda_function_url" "ack" {
   }
 }
 
+resource "aws_lambda_permission" "ack_url" {
+  statement_id           = "AllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.ack.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "ack_invoke" {
+  statement_id  = "AllowPublicInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ack.function_name
+  principal     = "*"
+}
+
 # ── Worker Lambda ────────────────────────────────────────────
 resource "aws_lambda_function" "worker" {
   function_name = "barlow-automation-worker"
