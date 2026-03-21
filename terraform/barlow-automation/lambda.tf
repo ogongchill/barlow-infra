@@ -12,12 +12,15 @@ resource "aws_lambda_function" "ack" {
 
   environment {
     variables = {
-      SLACK_BOT_TOKEN      = data.aws_ssm_parameter.slack_bot_token.value
-      SLACK_SIGNING_SECRET = data.aws_ssm_parameter.slack_signing_secret.value
-      OPENAI_API_KEY       = data.aws_ssm_parameter.openai_api_key.value
-      SQS_QUEUE_URL        = aws_sqs_queue.queue.url
-      GITHUB_TOKEN         = data.aws_ssm_parameter.github_token.value
-      TARGET_REPO   = data.aws_ssm_parameter.target_repo.value
+      SLACK_BOT_TOKEN           = data.aws_ssm_parameter.slack_bot_token.value
+      SLACK_SIGNING_SECRET      = data.aws_ssm_parameter.slack_signing_secret.value
+      OPENAI_API_KEY            = data.aws_ssm_parameter.openai_api_key.value
+      SQS_QUEUE_URL             = aws_sqs_queue.queue.url
+      GITHUB_TOKEN              = data.aws_ssm_parameter.github_token.value
+      TARGET_REPO               = data.aws_ssm_parameter.target_repo.value
+      WORKFLOW_TABLE_NAME       = aws_dynamodb_table.workflow.name
+      PENDING_ACTION_TABLE_NAME = aws_dynamodb_table.pending_action.name
+      ACTIVE_SESSION_TABLE_NAME = aws_dynamodb_table.active_session.name
     }
   }
 
@@ -67,12 +70,15 @@ resource "aws_lambda_function" "worker" {
 
   environment {
     variables = {
-      SLACK_BOT_TOKEN      = data.aws_ssm_parameter.slack_bot_token.value
-      SLACK_SIGNING_SECRET = data.aws_ssm_parameter.slack_signing_secret.value
-      SQS_QUEUE_URL        = aws_sqs_queue.queue.url
-      OPENAI_API_KEY       = data.aws_ssm_parameter.openai_api_key.value
-      GITHUB_TOKEN         = data.aws_ssm_parameter.github_token.value
-      TARGET_REPO          = data.aws_ssm_parameter.target_repo.value
+      SLACK_BOT_TOKEN           = data.aws_ssm_parameter.slack_bot_token.value
+      SLACK_SIGNING_SECRET      = data.aws_ssm_parameter.slack_signing_secret.value
+      SQS_QUEUE_URL             = aws_sqs_queue.queue.url
+      OPENAI_API_KEY            = data.aws_ssm_parameter.openai_api_key.value
+      GITHUB_TOKEN              = data.aws_ssm_parameter.github_token.value
+      TARGET_REPO               = data.aws_ssm_parameter.target_repo.value
+      WORKFLOW_TABLE_NAME       = aws_dynamodb_table.workflow.name
+      PENDING_ACTION_TABLE_NAME = aws_dynamodb_table.pending_action.name
+      ACTIVE_SESSION_TABLE_NAME = aws_dynamodb_table.active_session.name
     }
   }
 
