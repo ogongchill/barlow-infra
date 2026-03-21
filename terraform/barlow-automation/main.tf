@@ -24,6 +24,8 @@ data "aws_caller_identity" "current" {}
 
 locals {
   tags = {
-    env = "automation"
+    env         = "automation"
+    Environment = "Prod"
+    Service     = "barlow-automation"
   }
 }

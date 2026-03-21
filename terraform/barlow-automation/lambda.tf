@@ -6,6 +6,7 @@ resource "aws_lambda_function" "ack" {
   handler       = "src.controller.lambda_ack.handler"
   timeout       = 29 # Slack 3초 ack 제한 — 실제 처리는 SQS로 위임
   memory_size   = 256
+  architectures = ["arm64"]
   s3_bucket     = "barlow-deploy-bucket"
   s3_key        = "automation/placeholder.zip" # 최초 1회 수동 업로드 필요
 
@@ -44,6 +45,7 @@ resource "aws_lambda_function" "worker" {
   handler       = "src.app.handlers.step_worker_handler.handler"
   timeout       = 900 # AI agent + GitHub MCP 호출 포함, 최대 15분
   memory_size   = 512
+  architectures = ["arm64"]
   s3_bucket     = "barlow-deploy-bucket"
   s3_key        = "barlow/automation/placeholder.zip" # 최초 1회 수동 업로드 필요
 
