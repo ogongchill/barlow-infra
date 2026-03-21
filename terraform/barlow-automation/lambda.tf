@@ -71,4 +71,6 @@ resource "aws_lambda_event_source_mapping" "worker_sqs" {
   event_source_arn = aws_sqs_queue.queue.arn
   function_name    = aws_lambda_function.worker.arn
   batch_size       = 1 # 멱등성 보장 — 2 이상이면 동일 워크플로우 병렬 실행 위험
+
+  tags = local.tags
 }

@@ -24,8 +24,9 @@ data "aws_caller_identity" "current" {}
 
 locals {
   tags = {
-    env         = "automation"
+    Project     = "barlow"
     Environment = "Prod"
     Service     = "barlow-automation"
+    MannagedBy  = "terraform"
   }
 }
