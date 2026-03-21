@@ -99,7 +99,7 @@ data "aws_iam_policy_document" "deployer_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:ogongchill/barlow-automation:ref:refs/heads/main"]
+      values   = ["repo:ogongchill/barlow-automation:ref:refs/heads/master"]
     }
   }
 }
