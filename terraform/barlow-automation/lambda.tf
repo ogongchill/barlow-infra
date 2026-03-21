@@ -47,7 +47,7 @@ resource "aws_lambda_function" "worker" {
   memory_size   = 512
   architectures = ["arm64"]
   s3_bucket     = "barlow-deploy-bucket"
-  s3_key        = "barlow/automation/placeholder.zip" # 최초 1회 수동 업로드 필요
+  s3_key        = "automation/placeholder.zip" # 최초 1회 수동 업로드 필요
 
   environment {
     variables = {
