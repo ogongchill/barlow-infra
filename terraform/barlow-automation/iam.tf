@@ -99,7 +99,7 @@ data "aws_iam_policy_document" "deployer_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${data.aws_ssm_parameter.target_repo.value}:ref:refs/heads/master"]
+      values   = ["repo:${data.aws_ssm_parameter.target_repo.value}:ref:refs/heads/main"]
     }
   }
 }
