@@ -118,7 +118,7 @@ resource "aws_iam_role_policy" "deployer_permissions" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:PutObject"]
+        Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = "arn:aws:s3:::barlow-deploy-bucket/barlow/automation/*"
       },
       {
