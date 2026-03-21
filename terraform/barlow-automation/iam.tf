@@ -55,20 +55,6 @@ resource "aws_iam_role_policy" "worker_permissions" {
         ]
         Resource = aws_sqs_queue.queue.arn
       },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:UpdateItem"
-        ]
-        Resource = [
-          aws_dynamodb_table.workflow.arn,
-          aws_dynamodb_table.pending_action.arn,
-          aws_dynamodb_table.active_session.arn,
-        ]
-      },
     ]
   })
 }
@@ -77,6 +63,52 @@ resource "aws_iam_role_policy_attachment" "worker_logs" {
   role       = aws_iam_role.worker.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
+
+resource "aws_iam_role_policy" "ack_dynamodb" {
+  name = "ack-dynamodb"
+  role = aws_iam_role.ack.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.workflow.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+        Resource = aws_dynamodb_table.active_session.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "worker_dynamodb" {
+  name = "worker-dynamodb"
+  role = aws_iam_role.worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.workflow.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.pending_action.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+        Resource = aws_dynamodb_table.active_session.arn
+      },
+    ]
+  })
+}
+
 
 # ── barlow-deployer-role (GitHub Actions OIDC) ───────────────
 # 동일 AWS 계정에 GitHub OIDC Provider가 이미 등록되어 있을 경우 data source로 참조
