@@ -107,7 +107,7 @@ data "aws_iam_policy_document" "deployer_assume_role" {
 resource "aws_iam_role" "deployer" {
   name               = "automation-deployer-role"
   assume_role_policy = data.aws_iam_policy_document.deployer_assume_role.json
-  tags               = merge(local.tags, { Name = "barlow-deployer-role" })
+  tags               = local.tags
 }
 
 resource "aws_iam_role_policy" "deployer_permissions" {
