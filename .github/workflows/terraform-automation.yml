@@ -2,10 +2,10 @@ name: Terraform Automation
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: [terraform/barlow-automation/**]
   pull_request:
-    branches: [master]
+    branches: [main]
     paths: [terraform/barlow-automation/**]
 
 permissions:
