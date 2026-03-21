@@ -1,0 +1,104 @@
+name: Terraform Automation
+
+on:
+  push:
+    branches: [main]
+    paths: [terraform/barlow-automation/**]
+  pull_request:
+    branches: [main]
+    paths: [terraform/barlow-automation/**]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/barlow-automation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::620455725922:role/github-terraform-role
+          aws-region: ap-northeast-2
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request'
+        id: plan
+        run: terraform plan -no-color 2>&1 | tee plan.txt && echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Post Plan Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/barlow-automation/plan.txt', 'utf8');
+            const exitcode = '${{ steps.plan.outputs.exitcode }}';
+            const status = exitcode === '0' ? '✅ 변경 없음' : exitcode === '2' ? '⚠️ 변경 있음' : '❌ 실패';
+
+            const body = `### Terraform Plan — \`terraform/barlow-automation\`
+            ${status}
+
+            <details><summary>Plan 결과 보기</summary>
+
+            \`\`\`terraform
+            ${plan}
+            \`\`\`
+            </details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Infracost Setup
+        if: github.event_name == 'pull_request'
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_SECRET }}
+
+      - name: Infracost Breakdown
+        if: github.event_name == 'pull_request'
+        run: |
+          infracost breakdown --path . \
+            --format table \
+            --no-color \
+            2>&1 | tee /tmp/infracost.txt
+
+      - name: Post Infracost Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const estimate = fs.readFileSync('/tmp/infracost.txt', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### 💰 비용 추정 (Infracost)\n\`\`\`\n${estimate}\n\`\`\``,
+            });
+
+      - name: Terraform Plan 실패 시 중단
+        if: github.event_name == 'pull_request' && steps.plan.outputs.exitcode == '1'
+        run: exit 1
+
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: terraform apply -auto-approve
