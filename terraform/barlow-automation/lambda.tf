@@ -6,22 +6,23 @@ resource "aws_lambda_function" "ack" {
   handler       = "src.controller.lambda_ack.handler"
   timeout       = 29 # Slack 3초 ack 제한 — 실제 처리는 SQS로 위임
   memory_size   = 256
-  filename      = data.archive_file.ack.output_path
-
-  source_code_hash = data.archive_file.ack.output_base64sha256
+  s3_bucket     = "barlow-deploy-bucket"
+  s3_key        = "automation/placeholder.zip" # 최초 1회 수동 업로드 필요
 
   environment {
     variables = {
       SLACK_BOT_TOKEN      = data.aws_ssm_parameter.slack_bot_token.value
       SLACK_SIGNING_SECRET = data.aws_ssm_parameter.slack_signing_secret.value
       SQS_QUEUE_URL        = aws_sqs_queue.queue.url
-      GITHUB_TOKEN       = data.aws_ssm_parameter.github_token.value
-      GITHUB_TARGET_REPO = data.aws_ssm_parameter.target_repo.value
+      GITHUB_TOKEN         = data.aws_ssm_parameter.github_token.value
+      GITHUB_TARGET_REPO   = data.aws_ssm_parameter.target_repo.value
     }
   }
 
+  tags = merge(local.tags, { Name = "barlow-slack-ack" })
+
   lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    ignore_changes = [s3_key, s3_object_version]
   }
 }
 
@@ -43,14 +44,12 @@ resource "aws_lambda_function" "worker" {
   handler       = "src.app.handlers.step_worker_handler.handler"
   timeout       = 900 # AI agent + GitHub MCP 호출 포함, 최대 15분
   memory_size   = 512
-  filename      = data.archive_file.worker.output_path
-
-  source_code_hash = data.archive_file.worker.output_base64sha256
+  s3_bucket     = "barlow-deploy-bucket"
+  s3_key        = "barlow/automation/placeholder.zip" # 최초 1회 수동 업로드 필요
 
   environment {
     variables = {
       SLACK_BOT_TOKEN      = data.aws_ssm_parameter.slack_bot_token.value
-      SLACK_APP_TOKEN      = data.aws_ssm_parameter.slack_app_token
       SLACK_SIGNING_SECRET = data.aws_ssm_parameter.slack_signing_secret.value
       SQS_QUEUE_URL        = aws_sqs_queue.queue.url
       OPENAI_API_KEY       = data.aws_ssm_parameter.openai_api_key.value
@@ -59,8 +58,10 @@ resource "aws_lambda_function" "worker" {
     }
   }
 
+  tags = merge(local.tags, { Name = "barlow-automation-worker" })
+
   lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    ignore_changes = [s3_key, s3_object_version]
   }
 }
 

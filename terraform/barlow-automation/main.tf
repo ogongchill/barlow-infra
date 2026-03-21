@@ -13,10 +13,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.0"
-    }
   }
 }
 
@@ -26,14 +22,8 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
-data "archive_file" "ack" {
-  type        = "zip"
-  source_dir  = "${path.module}/functions/ack"
-  output_path = "${path.module}/.build/ack.zip"
-}
-
-data "archive_file" "worker" {
-  type        = "zip"
-  source_dir  = "${path.module}/functions/worker"
-  output_path = "${path.module}/.build/worker.zip"
+locals {
+  tags = {
+    env = "automation"
+  }
 }

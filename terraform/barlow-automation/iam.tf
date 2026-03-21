@@ -10,8 +10,9 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 
 # ── barlow-ack-role ──────────────────────────────────────────
 resource "aws_iam_role" "ack" {
-  name               = "barlow-ack-role"
+  name               = "barlow-automation-ack-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = merge(local.tags, { Name = "barlow-automation-ack-role" })
 }
 
 resource "aws_iam_role_policy" "ack_sqs" {
@@ -34,12 +35,13 @@ resource "aws_iam_role_policy_attachment" "ack_logs" {
 
 # ── barlow-worker-role ───────────────────────────────────────
 resource "aws_iam_role" "worker" {
-  name               = "barlow-worker-role"
+  name               = "barlow-automation-worker-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = merge(local.tags, { Name = "barlow-automation-worker-role" })
 }
 
 resource "aws_iam_role_policy" "worker_permissions" {
-  name = "worker-sqs-dynamo"
+  name = "automation-worker-sqs-dynamo"
   role = aws_iam_role.worker.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -105,6 +107,7 @@ data "aws_iam_policy_document" "deployer_assume_role" {
 resource "aws_iam_role" "deployer" {
   name               = "barlow-deployer-role"
   assume_role_policy = data.aws_iam_policy_document.deployer_assume_role.json
+  tags               = merge(local.tags, { Name = "barlow-deployer-role" })
 }
 
 resource "aws_iam_role_policy" "deployer_permissions" {
